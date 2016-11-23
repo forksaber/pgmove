@@ -1,0 +1,110 @@
+#!/usr/bin/env ruby
+Signal.trap("INT") { exit 1 }
+
+def pgmove_dir?
+  File.exist? ".pgmove"
+end
+
+def init(argv)
+  dir = argv.first
+  abort "usage: pgmove init <dir>" if not dir
+  FileUtils.mkdir dir
+  FileUtils.touch "#{dir}/.pgmove"
+  puts "initialized #{dir}"
+end
+
+def read_config(file)
+  YAML.load_file file
+end
+
+require 'fileutils'
+require 'pgmove/logger'
+require 'optparse'
+
+logger = ::Pgmove::Logger.logger
+
+options = {}
+opts_parser = OptionParser.new do |opts| 
+    
+    banner = []  
+    banner << "Usage: pgmove [global options] command args"
+    banner << "Commands: init start status bucardo compare finalize"
+    
+    banner << "Options: "
+    opts.banner = banner.join("\n")
+
+    opts.on("-v", "--version", "Show version") do |v| 
+      puts ::Pgmove::VERSION
+      exit
+    end 
+
+    opts.on("--debug", "Show debug messages") do
+      options[:debug] = true
+      logger.level = ::Logger::DEBUG
+    end 
+
+    opts.on("--trace", "Show debug messages and exception stack trace") do
+      options[:debug] = true
+      options[:trace] = true
+      logger.level = ::Logger::DEBUG
+      logger.trace_mode = true
+    end 
+
+    opts.on_tail("-h", "--help", "Show this message") do
+      puts opts
+      exit
+    end
+end
+opts_parser.parse!(ARGV)
+
+command = ARGV.shift
+if command == "init"
+  init(ARGV)
+  exit
+elsif not pgmove_dir?
+  abort "not running from pgmove directory, use 'pgmove init <dir>'" if not pgmove_dir?
+end
+
+require 'pgmove/db'
+require 'pgmove/bucardo'
+require 'yaml'
+
+config = read_config("config.yml")
+
+
+src_db = Pgmove::Db.new(
+  name: config["src"]["name"],
+  user: config["src"]["user"],
+  pass: config["src"]["pass"],
+  host: config["src"]["host"],
+  port: config["src"]["port"]
+)
+
+dest_db = Pgmove::Db.new(
+  name: config["dest"]["name"],
+  user: config["dest"]["user"],
+  pass: config["dest"]["pass"],
+  host: config["dest"]["host"],
+  port: config["dest"]["port"],
+  use_tmp: true
+)
+
+bucardo = Pgmove::Bucardo.new(src_db, dest_db)
+
+case command
+when "start"
+  bucardo.setup
+  bucardo.start_sync
+when "status"
+  bucardo.status
+when "reset"
+  bucardo.reset
+when "compare"
+  bucardo.compare
+when "finalize"
+  bucardo.finalize
+when "bucardo", "b"
+  bucardo.bucardo ARGV.join(" ")
+else
+  puts opts_parser
+end
