@@ -35,9 +35,7 @@ module Pgmove
     def reset
       stop
       reset_pgpass
-      system! %(psql "#{@src_db.conn_str}" -c 'DROP schema if exists bucardo cascade')
-      system! %(psql "#{@src_db.conn_str}" -c 'DROP database IF EXISTS bucardo')
-      system! %(psql "#{@src_db.conn_str}" -c 'drop role IF EXISTS bucardo')
+      reset_src
       @dest_db.reset
     end
 
@@ -77,6 +75,7 @@ module Pgmove
 
     def finalize
       stop
+      reset_src
       @dest_db.finalize
     end
 
@@ -98,6 +97,12 @@ module Pgmove
         f.write "#{@src_db.host}:#{@src_db.port}:postgres:#{@src_db.user}:#{@src_db.pass}\n"
         f.chmod 0600
       end
+    end
+
+    def reset_src
+      system! %(psql "#{@src_db.conn_str}" -c 'DROP schema if exists bucardo cascade')
+      system! %(psql "#{@src_db.conn_str}" -c 'DROP database IF EXISTS bucardo')
+      system! %(psql "#{@src_db.conn_str}" -c 'drop role IF EXISTS bucardo')
     end
 
     def install
