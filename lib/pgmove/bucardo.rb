@@ -74,8 +74,11 @@ module Pgmove
     end
 
     def finalize
-      stop
-      reset_src
+      @src_db.disable do |conn|
+        sleep 5
+        stop
+        remove_bucardo conn
+      end
       @dest_db.finalize
     end
 
@@ -100,9 +103,14 @@ module Pgmove
     end
 
     def reset_src
-      system! %(psql "#{@src_db.conn_str}" -c 'DROP schema if exists bucardo cascade')
-      system! %(psql "#{@src_db.conn_str}" -c 'DROP database IF EXISTS bucardo')
-      system! %(psql "#{@src_db.conn_str}" -c 'drop role IF EXISTS bucardo')
+      @src_db.pg_conn { |conn| remove_bucardo conn }
+    end
+
+    def remove_bucardo(conn)
+      logger.bullet "removing bucardo"
+      conn.exec "DROP schema if exists bucardo cascade"
+      conn.exec "DROP database IF EXISTS bucardo"
+      conn.exec "drop role IF EXISTS bucardo"
     end
 
     def install

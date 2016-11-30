@@ -30,6 +30,29 @@ module Pgmove
       psql_raw "-f #{path}"
     end
 
+    def disable
+      new_name = "#{@name}_pgmove_disabled"
+      disable_sql = "update pg_database set datallowconn = false where datname = '#{@name}'"
+      stop_activity_sql = <<~SQL
+        select pg_terminate_backend(pid) from pg_stat_activity
+        where datname = '#{@name}'
+        AND COALESCE(application_name, '') NOT LIKE 'bucardo%' 
+        AND COALESCE(application_name, '') NOT LIKE 'pgmove'
+      SQL
+      rename_sql = "ALTER DATABASE #{@name} RENAME to #{new_name}"
+      dbconn = pg_conn
+      pg_conn("postgres") do |conn|
+        logger.bullet "sql: #{disable_sql}"
+        conn.exec disable_sql
+        logger.bullet "sql: #{stop_activity_sql}"
+        conn.exec stop_activity_sql
+        yield dbconn
+        dbconn.close
+        logger.bullet "sql: #{rename_sql}"
+        conn.exec rename_sql
+      end
+    end
+
     def finalize
       psql "ALTER DATABASE #{@name} RENAME to #{@final_name}", db: "postgres"
     end
@@ -80,13 +103,15 @@ module Pgmove
       end
     end
 
-    def pg_conn
+    def pg_conn(db = nil)
+      db ||= @name
       conn = PG::Connection.open(
-        :dbname => @name, 
-        :user => @user, 
-        :password => @pass, 
-        :host => @host, 
-        :port => @port
+        dbname: db,
+        user: @user,
+        password: @pass,
+        host: @host,
+        port: @port,
+        application_name: "pgmove"
       )
       if block_given?
         yield conn
