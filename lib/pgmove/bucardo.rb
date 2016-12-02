@@ -129,7 +129,7 @@ module Pgmove
     end
 
     def add_tables
-      bucardo "add all tables db=source_db relgroup=#{RELGROUP} -T public.spatial_ref_sys -N postgis"
+      bucardo "add all tables db=source_db relgroup=#{RELGROUP} -T public.spatial_ref_sys -N postgis -T spatial_ref_sys"
       bucardo "add all sequences db=source_db relgroup=#{RELGROUP}"
     end
 

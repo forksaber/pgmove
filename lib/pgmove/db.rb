@@ -89,18 +89,13 @@ module Pgmove
     end
 
     def row_count(table, conn:)
-      sql = "select count(*) from #{table}"
+      split = table.split(".")
+      schema = split[0]
+      name = split[1]
+      sql = %(select count(*) from #{schema}."#{name}")
       conn.exec(sql)[0]["count"].to_i
     rescue
       -1
-    end
-
-    def compare(other_db)
-      row_counts = row_counts()
-      other_row_counts = other_db.row_counts
-      row_counts.each do |k, v|
-        printf "%-60s %15d %15d\n", k, row_counts[k], other_row_counts[k]
-      end
     end
 
     def pg_conn(db = nil)
