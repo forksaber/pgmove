@@ -14,7 +14,7 @@ module Pgmove
       @port = port
 
       if use_tmp
-        @name = "#{name}_bucardo_tmp"
+        @name = "#{name}_pgmove_tmp"
         @final_name = name
       else
         @name = name

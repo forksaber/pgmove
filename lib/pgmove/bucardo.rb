@@ -15,6 +15,7 @@ module Pgmove
     def initialize(src_db, dest_db)
       @src_db = src_db
       @dest_db = dest_db
+      @dbname = "bucardo_#{@src_db.name}"
     end
 
     def setup
@@ -28,7 +29,7 @@ module Pgmove
     end
 
     def bucardo(command, db: nil, env: {})
-      db ||= "bucardo"
+      db ||= @dbname
       system! "bucardo -U #{@src_db.user} -P #{@src_db.pass} -h #{@src_db.host} -p #{@src_db.port} -d #{db} #{command}", env: env
     end
 
@@ -110,12 +111,20 @@ module Pgmove
       logger.bullet "removing bucardo"
       conn.exec "DROP schema if exists bucardo cascade"
       conn.exec "DROP database IF EXISTS bucardo"
+      conn.exec "DROP database IF EXISTS #{@dbname}"
       conn.exec "drop role IF EXISTS bucardo"
     end
 
     def install
       env = { "DBUSER" => @src_db.user }
       bucardo "install --batch --pid-dir tmp", db: "postgres", env: env
+      @src_db.pg_conn do |conn|
+        conn.exec "alter database bucardo rename to #{@dbname}"
+      end
+      @src_db.pg_conn(@dbname) do |conn|
+        conn.exec "reassign owned by bucardo to #{@src_db.user}"
+        conn.exec "drop role bucardo"
+      end
     end
 
     def copy_schema
